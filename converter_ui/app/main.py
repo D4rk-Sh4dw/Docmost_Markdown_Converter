@@ -68,33 +68,18 @@ async def handle_upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
     # 2. Process Result
-    # Expecting: { "document": { "markdown": "...", "images": [...] }, "status": "success" }
-    # OR if official docling, we might need to parse differently.
-    # Note: If the user provides an EXTERNAL OFFICIAL SERVER, this code must fail gracefully or handle it.
-    # But since I don't know the exact JSON shape of official server 'content', 
-    # I am relying on my internal implementation structure. 
-    # If using official, the user might get a mismatch error here if 'markdown' key is missing.
-    
+    # Log revealed structure: data['document']['md_content']
     document = data.get("document", {})
-    
-    # Robustness: Check if 'markdown' exists directly or inside 'document'
-    # (My server puts it in 'document')
-    markdown_content = document.get("markdown")
-    images = document.get("images", [])
+    markdown_content = document.get("md_content")
     
     if not markdown_content:
-        # Fallback? Maybe data itself has it?
-        markdown_content = data.get("markdown")
-        if not markdown_content:
-             # If official server returns 'main_text' or similar?
-            markdown_content = document.get("main_text", "")
-            
-    if not markdown_content:
-         # Last resort validation
-        logger.warning("No markdown content found in response")
-        # Don't fail yet, maybe it's image only? But Docmost needs MD.
-        # Proceed with empty MD?
+        # Fallback check
+        logger.warning(f"md_content not found. Document keys: {list(document.keys())}")
         markdown_content = ""
+
+    # Images are embedded in markdown as data-uris, so we pass empty list here
+    # and let create_docmost_zip extract them.
+    images = []
 
     # 3. Create ZIP
     try:

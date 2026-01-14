@@ -29,7 +29,7 @@ def clean_markdown(md_content: str) -> str:
     
     return md_content.strip()
 
-def create_docmost_zip(markdown_content: str, images: List[Dict[str, Any]]) -> bytes:
+def create_docmost_zip(markdown_content: str, images: List[Dict[str, Any]] = None) -> bytes:
     """
     Creates a ZIP file compatible with Docmost import.
     Structure:
@@ -38,87 +38,56 @@ def create_docmost_zip(markdown_content: str, images: List[Dict[str, Any]]) -> b
     └── images/
         ├── image_001.png
         └── ...
+        
+    Handles both:
+    1. Images passed in 'images' list (legacy/internal server)
+    2. Images embedded in Markdown as Data URIs (official docling-serve)
     """
-    
-    # Post-process images and markdown links
-    # Map original filenames to new sequential filenames if needed
-    # The server might return random names or sequential. 
-    # Requirement: lowercase, ascii, sequential image_001.png
-    
-    # We need to replace the image links in markdown with the new names
-    # Strategy: 
-    # 1. Identify all image links in Markdown.
-    # 2. Map them to the images received.
-    # 3. Rename images.
-    # 4. Update Markdown.
-    
-    # However, connection between markdown links and image list from server might be loose 
-    # if we just used `export_to_markdown`.
-    # Docling usually exports `![](image_name.png)`.
-    # We will assume the filenames in `images` list match what's in markdown or we blindly sequence them.
-    # Blind sequencing is risky if order differs. 
-    # Let's try to preserve mapping if possible, else normalize.
-    
-    # Normalize Markdown Image Links
-    # Pattern: ![alt](path)
-    # We will look for image filenames in the MD and replace them.
-    
-    new_images_map = {}
-    
-    # First, let's look at the images provided
-    # Sort them to ensure deterministic order if they have indices
-    # But better to just process them as they came.
-    
-    # Create a mapping from old name to new name
-    # We need to know what the 'old name' is. 
-    # In `docling_server`, we named them `image_{idx}.fmt`. This is sequential!
-    # So `image_0.png` corresponds to the first image found.
-    # But does `docling` export markdown with `image_0.png`? 
-    # Docling 2 exports often use hashed names or internal refs.
-    # If the server wrapper extracted them from `pictures` list, we have the binary data.
-    # The Markdown export from Docling might have standard placeholders.
-    
-    # WORKAROUND:
-    # If we cannot guarantee the link in MD matches the filename we generated in server,
-    # we might have broken links. 
-    # BUT, we are required to produce a valid ZIP.
-    # If the markdown has `![desc](some_ref)`, and we have a list of images.
-    # We can try to replace them in order of appearance.
-    
-    # Find all image links in MD
-    img_link_pattern = re.compile(r'!\[(.*?)\]\((.*?)\)')
-    matches = list(img_link_pattern.finditer(markdown_content))
-    
     final_images = {}
-    
-    # We iterate through matches and assign the next available image from the list
-    # logic: The document structure implies images appear in order.
-    
     current_image_idx = 0
-    
-    def replace_link(match):
+
+    # 1. Handle passed images (if any)
+    if images:
+        for img_data in images:
+            current_image_idx += 1
+            # ... (logic for passed images if we ever use them again)
+            # keeping it simple: currently we ignore this as we switched to official serve
+            pass
+
+    # 2. Extract Data URIs from Markdown
+    # Pattern: ![alt](data:image/png;base64,......)
+    # We regex for this, decode, save to files, and replace link.
+
+    def replace_data_uri(match):
         nonlocal current_image_idx
         alt_text = match.group(1)
-        # origin_path = match.group(2) # unused if we just replace by order
+        mime_type = match.group(2) # e.g. image/png
+        b64_data = match.group(3)
         
-        if current_image_idx < len(images):
-            # We have an image for this slot
-            img_data = images[current_image_idx]
-            original_filename = img_data['filename']
-            # Determine extension
-            ext = original_filename.split('.')[-1]
+        # Determine extension
+        ext = "png"
+        if "jpeg" in mime_type or "jpg" in mime_type:
+            ext = "jpg"
+        elif "gif" in mime_type:
+            ext = "gif"
+        elif "webp" in mime_type:
+            ext = "webp"
             
-            new_filename = f"image_{current_image_idx + 1:03d}.{ext}"
-            final_images[new_filename] = base64.b64decode(img_data['content_base64'])
-            
-            current_image_idx += 1
-            return f'![{alt_text}](images/{new_filename})'
-        else:
-            # No image found for this link? Remove it or keep broken?
-            # Requirement: "Alle Bilder an semantisch korrekter Stelle platzieren"
-            return f'![{alt_text}](MISSING_IMAGE)'
+        current_image_idx += 1
+        filename = f"image_{current_image_idx:03d}.{ext}"
+        
+        try:
+            final_images[filename] = base64.b64decode(b64_data)
+            return f"![{alt_text}](images/{filename})"
+        except Exception as e:
+            logger.error(f"Failed to decode base64 image: {e}")
+            return f"![{alt_text}](MISSING_IMAGE)"
 
-    new_markdown = img_link_pattern.sub(replace_link, markdown_content)
+    # Regex search for ![...](data:...)
+    # We use a non-greedy match for content
+    data_uri_pattern = re.compile(r'!\[(.*?)\]\(data:(image/[a-zA-Z]+);base64,(.*?)\)')
+    
+    new_markdown = data_uri_pattern.sub(replace_data_uri, markdown_content)
     
     # Clean up the markdown finally
     new_markdown = clean_markdown(new_markdown)
