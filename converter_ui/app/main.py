@@ -52,6 +52,13 @@ async def handle_upload(file: UploadFile = File(...)):
                 raise HTTPException(status_code=response.status_code, detail=f"Conversion service failed: {response.text}")
             
             data = response.json()
+            logger.info(f"Response Keys: {list(data.keys())}")
+            if "document" in data:
+                 doc_keys = list(data["document"].keys())
+                 logger.info(f"Document Keys: {doc_keys}")
+                 # Log first 500 chars of document for inspection
+                 import json
+                 logger.info(f"Document Snippet: {json.dumps(data['document'], default=str)[:500]}")
             
     except httpx.RequestError as e:
         logger.error(f"Connection error: {e}")
