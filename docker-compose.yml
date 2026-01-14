@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  converter-ui:
+    build: ./converter_ui
+    container_name: converter-ui
+    ports:
+      - "3000:3000"
+    environment:
+      # Set to external URL if running Docling separately (e.g., http://host.docker.internal:5001)
+      # Default is internal service on port 5001
+      - DOCLING_SERVER_URL=${DOCLING_SERVER_URL:-http://docling-server:5001}
+    # Uncomment 'depends_on' only if using the internal docling-server below
+    depends_on:
+      - docling-server
+    restart: unless-stopped
+
+  # Optional: Internal Docling Server (Comment out if using external)
+  # Mimics the official docling-serve on port 5001
+  docling-server:
+    build: ./docling_server
+    container_name: docling-server
+    environment:
+      - OMP_NUM_THREADS=4
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
