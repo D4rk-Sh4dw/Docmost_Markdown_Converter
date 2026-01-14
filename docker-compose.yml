@@ -3,25 +3,10 @@ version: '3.8'
 services:
   converter-ui:
     image: ghcr.io/d4rk-sh4dw/docmost_markdown_converter-ui:latest
-    # Optional: Build from source if you want to develop
-    # build: https://github.com/D4rk-Sh4dw/Docmost_Markdown_Converter.git#main:converter_ui
     container_name: converter-ui
     ports:
       - "3000:3000"
     environment:
-      - DOCLING_SERVER_URL=${DOCLING_SERVER_URL:-http://docling-server:5001}
-    depends_on:
-      - docling-server
+      # MUST point to your external Docling server
+      - DOCLING_SERVER_URL=${DOCLING_SERVER_URL:-http://localhost:5001}
     restart: unless-stopped
-
-  # Optional: Internal Docling Server (Comment out if using external)
-  docling-server:
-    image: ghcr.io/d4rk-sh4dw/docmost_markdown_converter-server:latest
-    # Optional: Build from source if you want to develop
-    # build: https://github.com/D4rk-Sh4dw/Docmost_Markdown_Converter.git#main:docling_server
-    container_name: docling-server
-    environment:
-      - OMP_NUM_THREADS=4
-    restart: unless-stopped
-    ports:
-      - "5001:5001"

@@ -18,14 +18,11 @@ jobs:
 
     strategy:
       matrix:
-        service: [converter-ui, docling-server]
+        service: [converter-ui]
         include:
           - service: converter-ui
             context: converter_ui
             image_suffix: -ui
-          - service: docling-server
-            context: docling_server
-            image_suffix: -server
 
     steps:
       - name: Checkout repository
