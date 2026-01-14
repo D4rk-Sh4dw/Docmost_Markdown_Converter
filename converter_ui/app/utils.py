@@ -34,7 +34,15 @@ def clean_markdown(md_content: str, title: str = None) -> str:
     # We remove common block tags that Docling might allow through.
     md_content = re.sub(r'</?(div|span|html|body|head|script|style|iframe|link|meta).*?>', '', md_content, flags=re.IGNORECASE)
     
-    # Can also remove empty specific tags if needed, but safer to leave text alone.
+    # Unescape HTML entities (e.g. &gt; -> >)
+    import html as html_lib
+    md_content = html_lib.unescape(md_content)
+
+    # Ensure blank lines around images for better spacing/rendering in Docmost
+    # Docmost/Markdown prefers blank lines before block elements.
+    # Replace newline+image with newline+newline+image, but avoid triple newlines.
+    md_content = re.sub(r'([^\n])\n!\[', r'\1\n\n![', md_content)
+
 
     
     # Add Title if provided
