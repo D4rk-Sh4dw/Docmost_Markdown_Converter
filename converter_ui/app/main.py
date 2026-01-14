@@ -46,18 +46,30 @@ async def handle_upload(file: UploadFile = File(...)):
             
             logger.info(f"Sending to Docling Server at {DOCLING_SERVER_URL}/v1/convert/file...")
             
-            # Options to ensure best quality / layout analysis
-            # We enable OCR and Table Structure to match 'full' docling capabilities
             options = {
+                "ocr_engine": "easyocr",
                 "do_ocr": "true",
-                "do_table_structure": "true", 
-                "ocr_engine": "easyocr" # Explicitly request easyocr to be safe
+                "force_full_page_ocr": "true",
+                "do_table_structure": "true",
             }
             
+            # Docling might expect 'pipeline_options' or 'format_options' as nested JSON for standard pipeline settings
+            # We try to cover bases by sending them as JSON strings which FormDepends can unpack
+            import json
+            pipeline_opts = {
+                "do_ocr": True,
+                "do_table_structure": True,
+                "force_full_page_ocr": True
+            }
+            options["pipeline_options"] = json.dumps(pipeline_opts)
+            
+            logger.info(f"Sending options: {options}")
             response = await client.post(f"{DOCLING_SERVER_URL}/v1/convert/file", files=files, data=options)
             
             if response.status_code != 200:
                 logger.error(f"Docling Server Error: {response.text}")
+                logger.info(f"Failed Options: {options}")
+
                 raise HTTPException(status_code=response.status_code, detail=f"Conversion service failed: {response.text}")
             
             data = response.json()
